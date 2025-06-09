@@ -4,7 +4,6 @@
 import os
 import geopandas as gpd
 import pandas as pd
-from shapely import wkt
 
 
 # ---------------------------------------------
@@ -71,7 +70,9 @@ for utility in utilities:
     )
 
     cur_aggregation_boundary_gdf["is_valid"] = cur_aggregation_boundary_gdf.is_valid
-    invalid_gdf = cur_aggregation_boundary_gdf[~cur_aggregation_boundary_gdf["is_valid"]]
+    invalid_gdf = cur_aggregation_boundary_gdf[
+        ~cur_aggregation_boundary_gdf["is_valid"]
+    ]
 
     if invalid_gdf.shape[0] != 0:
         print(f"Invalid geometries found for utility '{utility}'. Skipping.")
@@ -96,5 +97,3 @@ boundaries_path = os.path.join(
     boundaries_directory, "utility_service_territories_polygons.parquet"
 )
 utilities_df.to_parquet(boundaries_path, index=False)
-
-
