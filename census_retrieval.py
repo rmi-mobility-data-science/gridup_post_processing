@@ -110,7 +110,7 @@ for row in state_df.itertuples():
     # Construct GEOID and select relevant columns
     acs_data["GEOID"] = acs_data["state"] + acs_data["place"]
     acs_data = acs_data[["GEOID", "population"]]
-    acs_data["state_abbreviation"] = state_abbreviation
+    acs_data["STATE"] = state_abbreviation
 
     # ---------------------------------------------
     # Step 3: Load Spatial Boundaries
@@ -157,6 +157,6 @@ for row in state_df.itertuples():
 # Step 5: Combine Results
 # ---------------------------------------------
 all_places = pd.concat(states_dict.values(), ignore_index=True)
-# Save to a geo-parquet file
+# Save to a parquet file
 output_path = os.path.join(boundaries_directory, "filtered_places.parquet")
 all_places.to_parquet(output_path, index=False)
