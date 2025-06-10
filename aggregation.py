@@ -341,12 +341,9 @@ def generate_results(con, input_table: str):
 # Configuration
 # ---------------------------------------------
 INPUTS_PATH = "inputs"
-OUTPUTS_PATH = "outputs"
+OUTPUTS_PATH = os.path.join("outputs", "census_places")
 BOUNDARIES_DIR = os.path.join(INPUTS_PATH, "aggregation_boundaries")
-BOUNDARIES_PATH = os.path.join(
-    BOUNDARIES_DIR, "utility_service_territories_polygons.parquet"
-)
-COUNTIES_PATH = os.path.join(BOUNDARIES_DIR, "sel_counties.csv")
+BOUNDARIES_PATH = os.path.join(BOUNDARIES_DIR, "filtered_census_places.parquet")
 LOAD_CURVES_FILES = os.path.join(INPUTS_PATH, "evolved_*/*.parquet")
 
 # Column names
@@ -362,6 +359,8 @@ ORIGINAL_CRS = 4326  # WGS84
 # Load and prepare boundary data
 # ---------------------------------------------
 boundary_df = pd.read_parquet(BOUNDARIES_PATH)
+if "geometry" in boundary_df.columns:
+    boundary_df = boundary_df.drop(columns=["geometry"])
 states = boundary_df["STATE"].unique().tolist()
 
 for state in states:

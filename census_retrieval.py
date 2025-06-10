@@ -118,7 +118,6 @@ for row in state_df.itertuples():
     spatial_data = pygris.places(state=state_fips, year=2023, cb=True)
     spatial_data.set_crs("EPSG:4269", inplace=True)  # Set CRS to NAD83
     spatial_data = spatial_data.to_crs("EPSG:4326")  # Convert to WGS84
-    spatial_data["boundary_wkt"] = spatial_data.geometry.to_wkt().astype(str)
 
     # Merge ACS data with spatial boundaries
     merged = spatial_data.merge(acs_data, on="GEOID", how="inner")
@@ -138,10 +137,11 @@ for row in state_df.itertuples():
     # - Relevant place types (cities, towns, CDPs, etc.)
     # - Excluded very small geographic areas
 
-    # Optional preview
-    filtered[["NAME", "GEOID", "population", "LSAD", "boundary_wkt", "geometry"]]
+    # Subset columns
+    filtered = filtered[["NAME", "STATE", "population", "LSAD", "geometry"]]
     # Explode multipolygons to polygons
     polygons_filtered = filtered.explode(ignore_index=True)
+    polygons_filtered["boundary_wkt"] = polygons_filtered.geometry.to_wkt().astype(str)
 
     polygons_filtered["is_valid"] = polygons_filtered.is_valid
     invalid_gdf = polygons_filtered[~polygons_filtered["is_valid"]]
