@@ -93,6 +93,9 @@ for utility in utilities:
 # Save the resulting DataFrame to a CSV file
 utilities_df = pd.concat(utilities_dict.values(), ignore_index=True)
 
+# Replace NaN values in the 'STATE' column with 'No_State'
+utilities_df.loc[utilities_df["STATE"].isnull(), "STATE"] = "No_State"
+
 boundaries_path = os.path.join(
     boundaries_directory, "utility_service_territories_polygons.parquet"
 )
