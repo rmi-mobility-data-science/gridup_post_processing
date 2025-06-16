@@ -1,0 +1,40 @@
+name: Docker CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-run:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Build Docker image
+      run: docker build -t aggregation-pipeline .
+
+    - name: Prepare test data
+      run: |
+        mkdir -p data/inputs data/outputs
+        cp tests/fixtures/* data/inputs/
+
+    - name: Run pipeline in container
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}/data:/data \
+          aggregation-pipeline \
+          python aggregation_cli.py \
+          --state CT \
+          --inputs_path /data/inputs \
+          --outputs_path /data/outputs \
+          --boundaries_path /data/inputs/test_boundary.parquet
+
+    - name: Upload output artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: results
+        path: data/outputs/
