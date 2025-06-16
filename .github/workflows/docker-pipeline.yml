@@ -20,7 +20,7 @@ jobs:
     - name: Prepare test data
       run: |
         mkdir -p data/inputs data/outputs
-        cp tests/fixtures/* data/inputs/
+        cp -r tests/fixtures/* data/inputs/
 
     - name: Run pipeline in container
       run: |
