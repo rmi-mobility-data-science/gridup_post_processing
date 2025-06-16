@@ -1,0 +1,27 @@
+# Ignore raw data folders
+data/
+*.parquet
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ignore Jupyter notebooks and outputs
+*.ipynb
+.ipynb_checkpoints/
+
+# Ignore OS and editor files
+.DS_Store
+.env
+.vscode/
+.idea/
+
+# Ignore virtual environments
+venv/
+.env/
+.venv/
+
+# Logs and temp
+*.log
+*.tmp

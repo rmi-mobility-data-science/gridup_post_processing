@@ -1,0 +1,15 @@
+version: '3.9'
+
+services:
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/data
+    command: >
+      python aggregation_cli.py
+      --state ${STATE}
+      --inputs_path /data/inputs
+      --outputs_path /data/outputs/census_places 
+      --boundaries_path /data/inputs/aggregation_boundaries/filtered_census_places.parquet
