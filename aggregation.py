@@ -340,8 +340,8 @@ def generate_results(con, input_table: str):
 # ---------------------------------------------
 # Configuration
 # ---------------------------------------------
-INPUTS_PATH = "inputs"
-OUTPUTS_PATH = os.path.join("outputs", "census_places")
+INPUTS_PATH = os.path.join("data", "inputs")
+OUTPUTS_PATH = os.path.join("data", "outputs", "census_places")
 BOUNDARIES_DIR = os.path.join(INPUTS_PATH, "aggregation_boundaries")
 BOUNDARIES_PATH = os.path.join(BOUNDARIES_DIR, "filtered_census_places.parquet")
 LOAD_CURVES_FILES = os.path.join(INPUTS_PATH, "evolved_*/*.parquet")
