@@ -246,6 +246,28 @@ def distribute_weights(
     return con.sql(query)
 
 
+def generate_fine_hex_table(con, input_table: str, hex_col: str, fine_hex_level: int):
+    """Convert fine level hex cells
+
+    Args:
+        con (duckdb.DuckDBPyConnection): DuckDB connection
+        input_table (str): Input table with coarser hex cells
+        h3_col (str): Coarser H3 column name
+        fine_hex_level (str): Level of finer cells to convert to
+
+    Returns:
+        duckdb.DuckDBPyRelation: DuckDB relation
+        with finer hex cells
+    """
+    query = f"""
+        SELECT
+            *,
+            UNNEST(h3_cell_to_children({hex_col}, {fine_hex_level})) AS fine_hex_id
+        FROM {input_table}
+        """
+    return con.sql(query)
+
+
 def parallel_join(
     load_table_path: str, intersection_table_path: str, load_identity_col: str
 ) -> pd.DataFrame:
@@ -306,7 +328,7 @@ def parallel_join(
     return pd.concat(results, ignore_index=True)
 
 
-def generate_results(con, input_table: str):
+def generate_interior_results(con, input_table: str):
     """Apply weight ratios and aggregate to generate results
        by scenario, name, year, hour and charge category
 
@@ -337,6 +359,82 @@ def generate_results(con, input_table: str):
     return con.sql(query)
 
 
+def generate_boundary_results(
+    con: duckdb.DuckDBPyConnection, input_table: str, cross_table_path: str
+):
+    """Generate results by scenario, name and year
+
+    Args:
+        con (duckdb.DuckDBPyConnection): DuckDB connection
+        input_table (str): Table containing joined data
+        cross_table_path (str): Path to the cross table
+
+    Returns:
+        duckdb.DuckDBPyRelation: DuckDB relation with aggregated results
+    """
+    agg_cols = [str(i) for i in range(24)]
+    weighted_sums = ",\n    ".join(
+        [f'SUM("{col}" * orig_to_fine_frac) AS "{col}"' for col in agg_cols]
+    )
+
+    query = f"""
+        WITH boundary_joint AS (SELECT
+            *,
+        FROM {input_table}
+        INNER JOIN read_parquet('{cross_table_path}') AS cross_table
+        USING (geoid, charge_category, fine_hex_id))
+        SELECT
+            NAME,
+            charge_category,
+            scenario,
+            year,
+            {weighted_sums},
+            CEILING(SUM(ports * orig_to_fine_frac)) AS ports
+        FROM boundary_joint
+        GROUP BY NAME, charge_category, scenario, year
+        ORDER BY NAME, charge_category, scenario, year 
+        """
+    return con.sql(query)
+
+
+def generate_full_results(
+    con: duckdb.DuckDBPyConnection, interior_table: str, boundary_table: str
+):
+    """Generate results by scenario, name and year
+
+    Args:
+        con (duckdb.DuckDBPyConnection): DuckDB connection
+        interior_table (str): Table containing interior results
+        boundary_table (str): Table containing boundary results
+
+    Returns:
+        duckdb.DuckDBPyRelation: DuckDB relation with aggregated results
+    """
+    agg_cols = [str(i) for i in range(24)]
+    weighted_sums = ",\n    ".join([f'SUM("{col}") AS "{col}"' for col in agg_cols])
+
+    query = f"""
+        WITH full_table AS (
+        SELECT *,
+        FROM {interior_table}
+        UNION ALL
+        SELECT *
+        FROM {boundary_table}
+        )
+        SELECT
+            NAME,
+            charge_category,
+            scenario,
+            year,
+            {weighted_sums},
+            SUM(ports) AS ports
+        FROM full_table
+        GROUP BY NAME, charge_category, scenario, year
+        ORDER BY NAME, charge_category, scenario, year 
+        """
+    return con.sql(query)
+
+
 # ---------------------------------------------
 # Configuration
 # ---------------------------------------------
@@ -345,6 +443,7 @@ OUTPUTS_PATH = os.path.join("data", "outputs", "census_places")
 BOUNDARIES_DIR = os.path.join(INPUTS_PATH, "aggregation_boundaries")
 BOUNDARIES_PATH = os.path.join(BOUNDARIES_DIR, "filtered_census_places.parquet")
 LOAD_CURVES_FILES = os.path.join(INPUTS_PATH, "evolved_*/*.parquet")
+CROSS_TABLE_PATH = os.path.join(INPUTS_PATH, "cross_table.parquet")
 
 # Column names
 BOUNDARY_WKT_COL = "boundary_wkt"
@@ -354,6 +453,8 @@ H3_WKT = "h3_wkt"
 LOAD_IDENTITY_COL = "geoid"
 
 ORIGINAL_CRS = 4326  # WGS84
+FINE_HEX_LEVEL = 9  # Fine hex level
+
 
 # ---------------------------------------------
 # Load and prepare boundary data
@@ -462,27 +563,64 @@ for state in states:
         input_table="intersection_table",
         load_identity_col=LOAD_IDENTITY_COL,
     )
-    intersection_table_with_weights.to_parquet(
-        os.path.join(OUTPUTS_PATH, "intersection_table.parquet")
+    intersection_table_interior = sc_con.sql(
+        "SELECT * FROM intersection_table_with_weights WHERE ratio_sum >= 0.999"
+    )
+    intersection_table_interior.to_parquet(
+        os.path.join(OUTPUTS_PATH, "intersection_table_interior.parquet")
+    )
+
+    # Identify boundary hex cells that are part of more than one aggregation boundary
+    intersection_table_boundary = sc_con.sql(
+        "SELECT * FROM intersection_table_with_weights WHERE ratio_sum < 0.999"
+    )
+    intersection_table_boundary.to_parquet(
+        os.path.join(OUTPUTS_PATH, "intersection_table_boundary.parquet")
     )
 
     # ---------------------------------------------
     # Parallel join & final aggregation
     # ---------------------------------------------
-    joined_df = parallel_join(
+    # Join is done separately for interior and boundary results
+    interior_joined_df = parallel_join(
         load_table_path=os.path.join(OUTPUTS_PATH, "relevant_load_cells.parquet"),
         intersection_table_path=os.path.join(
-            OUTPUTS_PATH, "intersection_table.parquet"
+            OUTPUTS_PATH, "intersection_table_interior.parquet"
+        ),
+        load_identity_col=LOAD_IDENTITY_COL,
+    )
+    boundary_joined_df = parallel_join(
+        load_table_path=os.path.join(OUTPUTS_PATH, "relevant_load_cells.parquet"),
+        intersection_table_path=os.path.join(
+            OUTPUTS_PATH, "intersection_table_boundary.parquet"
         ),
         load_identity_col=LOAD_IDENTITY_COL,
     )
 
-    full_results = generate_results(con=sc_con, input_table="joined_df")
+    # First generate results for interior cells
+    full_interior_results = generate_interior_results(
+        con=sc_con, input_table="interior_joined_df"
+    )
 
+    # Generate results for boundary cells
+    fine_hex_table = generate_fine_hex_table(
+        sc_con, "boundary_joined_df", LOAD_IDENTITY_COL, FINE_HEX_LEVEL
+    )
+    full_boundary_results = generate_boundary_results(
+        con=sc_con, input_table="fine_hex_table", cross_table_path=CROSS_TABLE_PATH
+    )
+
+    # Now combine both results to get full results
+    full_results = generate_full_results(
+        con=sc_con,
+        interior_table="full_interior_results",
+        boundary_table="full_boundary_results",
+    )
     # ---------------------------------------------
     # Save results and remove temporary tables
     # ---------------------------------------------
-    os.remove(os.path.join(OUTPUTS_PATH, "intersection_table.parquet"))
+    os.remove(os.path.join(OUTPUTS_PATH, "intersection_table_boundary.parquet"))
+    os.remove(os.path.join(OUTPUTS_PATH, "intersection_table_interior.parquet"))
     os.remove(os.path.join(OUTPUTS_PATH, "relevant_load_cells.parquet"))
     full_results.to_parquet(os.path.join(state_outputs_path, "full_results.parquet"))
     sc_con.close()
