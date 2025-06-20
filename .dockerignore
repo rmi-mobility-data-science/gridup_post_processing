@@ -4,8 +4,16 @@ data/
 
 # Ignore Python cache
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
+*.pkl
+*.ipynb
+*.log
+data/
+tests/
+.env
+.dockerignore
+.git
 
 # Ignore Jupyter notebooks and outputs
 *.ipynb
