@@ -332,7 +332,7 @@ def subset_intersection_table(
         condition = f"{subset_col} < {subset_value}"
     query = f"""
         COPY (
-            SELECT * FROM {input_table_path} WHERE {condition}
+            SELECT * FROM read_parquet('{input_table_path}') WHERE {condition}
         ) TO '{output_path}' (FORMAT 'parquet')
     """
     con.execute(query)
@@ -742,6 +742,7 @@ def main():
     # ---------------------------------------------
     # Save results and remove temporary tables
     # ---------------------------------------------
+    os.remove(os.path.join(outputs_path, "intersection_table.parquet"))
     os.remove(os.path.join(outputs_path, "intersection_table_boundary.parquet"))
     os.remove(os.path.join(outputs_path, "intersection_table_interior.parquet"))
     os.remove(os.path.join(outputs_path, "relevant_load_cells.parquet"))
