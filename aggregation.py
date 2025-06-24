@@ -470,6 +470,7 @@ for state in states:
     if not os.path.isdir(state_outputs_path):
         os.makedirs(state_outputs_path, exist_ok=True)
     state_boundary_df = boundary_df[boundary_df["STATE"] == state].copy()
+
     # ---------------------------------------------
     # Set up DuckDB connection
     # ----------------------------------------------
@@ -516,7 +517,7 @@ for state in states:
     relevant_load_cells.to_parquet(
         os.path.join(OUTPUTS_PATH, "relevant_load_cells.parquet")
     )
-
+    
     # ---------------------------------------------
     # Prepare intersection table
     # ---------------------------------------------
@@ -616,6 +617,7 @@ for state in states:
         interior_table="full_interior_results",
         boundary_table="full_boundary_results",
     )
+
     # ---------------------------------------------
     # Save results and remove temporary tables
     # ---------------------------------------------
