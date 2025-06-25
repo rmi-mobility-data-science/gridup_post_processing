@@ -18,7 +18,7 @@ VALID_LSAD_CODES = [
     "06",
     "28",
 ]  # Relevant legal/statistical place types
-boundaries_directory = os.path.join("inputs", "aggregation_boundaries")
+boundaries_directory = os.path.join("data", "inputs", "aggregation_boundaries")
 
 
 # ---------------------------------------------
@@ -107,27 +107,39 @@ for row in state_df.itertuples():
     # Filter by population threshold
     acs_data = acs_data[acs_data["population"] > POPULATION_THRESHOLD].copy()
 
+    # Preprocess place names to remove unnecessary suffixes
+    acs_data["NAME"] = acs_data["NAME"].str.replace(
+        r"\s+(city|CDP)", "", regex=True, case=False
+    )
+    acs_data["NAME"] = acs_data["NAME"].apply(lambda x: x.split(",")[0])
+
+    # Check if there are records with repetitive names
+    if acs_data["NAME"].duplicated().any():
+        print(f"Warning: Duplicate place names found in {state_abbreviation}.")
+    else:
+        print(f"No duplicate place names found in {state_abbreviation}.")
+
     # Construct GEOID and select relevant columns
     acs_data["GEOID"] = acs_data["state"] + acs_data["place"]
-    acs_data = acs_data[["GEOID", "population"]]
-    acs_data["STATE"] = state_abbreviation
+    acs_data = acs_data[["NAME", "GEOID", "population"]]
 
     # ---------------------------------------------
     # Step 3: Load Spatial Boundaries
     # ---------------------------------------------
-    spatial_data = pygris.places(state=state_fips, year=2023, cb=True)
-    spatial_data.set_crs("EPSG:4269", inplace=True)  # Set CRS to NAD83
-    spatial_data = spatial_data.to_crs("EPSG:4326")  # Convert to WGS84
+    places_gdf = pygris.places(state=state_fips, year=2023, cb=True)
+    places_gdf.set_crs("EPSG:4269", inplace=True)  # Set CRS to NAD83
+    places_gdf = places_gdf.to_crs("EPSG:4326")  # Convert to WGS84
+    places_gdf = places_gdf[["GEOID", "STUSPS", "LSAD", "ALAND", "geometry"]]
 
     # Merge ACS data with spatial boundaries
-    merged = spatial_data.merge(acs_data, on="GEOID", how="inner")
+    merged = places_gdf.merge(acs_data, on="GEOID", how="inner")
 
     # ---------------------------------------------
     # Step 4: Filter by LSAD and Area
     # ---------------------------------------------
     filtered = merged[
         merged["LSAD"].isin(VALID_LSAD_CODES) & (merged["ALAND"] > AREA_THRESHOLD)
-    ]
+    ].copy()
 
     # ---------------------------------------------
     # Final Result
@@ -138,7 +150,8 @@ for row in state_df.itertuples():
     # - Excluded very small geographic areas
 
     # Subset columns
-    filtered = filtered[["NAME", "STATE", "population", "LSAD", "geometry"]]
+    filtered["NAME"] = filtered["NAME"] + "_" + filtered["STUSPS"]
+    filtered = filtered[["NAME", "population", "LSAD", "ALAND", "geometry"]]
     # Explode multipolygons to polygons
     polygons_filtered = filtered.explode(ignore_index=True)
     polygons_filtered["boundary_wkt"] = polygons_filtered.geometry.to_wkt().astype(str)
@@ -158,5 +171,5 @@ for row in state_df.itertuples():
 # ---------------------------------------------
 all_places = pd.concat(states_dict.values(), ignore_index=True)
 # Save to a parquet file
-output_path = os.path.join(boundaries_directory, "filtered_places.parquet")
+output_path = os.path.join(boundaries_directory, "filtered_census_places.parquet")
 all_places.to_parquet(output_path, index=False)
