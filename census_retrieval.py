@@ -150,8 +150,8 @@ for row in state_df.itertuples():
     # - Excluded very small geographic areas
 
     # Subset columns
-    filtered["NAME"] = filtered["NAME"] + "_" + filtered["STUSPS"]
-    filtered = filtered[["NAME", "population", "LSAD", "ALAND", "geometry"]]
+    filtered.rename(columns={"STUSPS": "STATE"}, inplace=True)
+    filtered = filtered[["NAME", "STATE", "population", "LSAD", "ALAND", "geometry"]]
     # Explode multipolygons to polygons
     polygons_filtered = filtered.explode(ignore_index=True)
     polygons_filtered["boundary_wkt"] = polygons_filtered.geometry.to_wkt().astype(str)
