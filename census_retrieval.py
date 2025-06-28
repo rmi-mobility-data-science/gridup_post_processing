@@ -153,17 +153,17 @@ for row in state_df.itertuples():
     filtered.rename(columns={"STUSPS": "STATE"}, inplace=True)
     filtered = filtered[["NAME", "STATE", "population", "LSAD", "ALAND", "geometry"]]
     # Explode multipolygons to polygons
-    polygons_filtered = filtered.explode(ignore_index=True)
-    polygons_filtered["boundary_wkt"] = polygons_filtered.geometry.to_wkt().astype(str)
+    # polygons_filtered = filtered.explode(ignore_index=True)
+    filtered["boundary_wkt"] = filtered.geometry.to_wkt().astype(str)
 
-    polygons_filtered["is_valid"] = polygons_filtered.is_valid
-    invalid_gdf = polygons_filtered[~polygons_filtered["is_valid"]]
+    filtered["is_valid"] = filtered.is_valid
+    invalid_gdf = filtered[~filtered["is_valid"]]
 
     if invalid_gdf.shape[0] != 0:
         print(f"Invalid geometries found for state '{state_abbreviation}'. Skipping.")
         continue
 
-    states_dict[state_abbreviation] = polygons_filtered
+    states_dict[state_abbreviation] = filtered
 
 
 # ---------------------------------------------
