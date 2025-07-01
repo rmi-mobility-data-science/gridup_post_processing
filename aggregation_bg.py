@@ -224,7 +224,7 @@ for state in states:
     # Load curves setup
     # ---------------------------------------------
     # Relevant load cells are within convex hulls of aggregation boundaries
-    relevant_load_bgs = extract_relevant_bgs(
+    extract_relevant_bgs(
         con=sc_con,
         load_curves_files=LOAD_CURVES_FILES,
         state_cross_table_path=STATE_CROSS_TABLE_PATH,
