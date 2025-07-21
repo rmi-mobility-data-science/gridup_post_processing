@@ -177,6 +177,7 @@ poetry.toml
 pyrightconfig.json
 
 # Data folders
+Archive/
 inputs/
 ouputs/
 data/

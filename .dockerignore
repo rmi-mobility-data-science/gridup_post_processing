@@ -1,5 +1,6 @@
 # Ignore raw data folders
 data/
+Archive/
 *.parquet
 
 # Ignore Python cache

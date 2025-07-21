@@ -1,89 +1,10 @@
 import os
-import pandas as pd
 import duckdb
 import argparse
+from src.joiner import join
+from src.aggregator import generate_results
 
 
-# ---------------------------------------------
-# Function Definitions
-# ---------------------------------------------
-def join(
-    con: duckdb.DuckDBPyConnection,
-    load_table_path: str,
-    cross_table_path: str,
-    load_identity_col: str,
-    cross_table_col: str,
-    output_table: str = "joined_table",
-) -> pd.DataFrame:
-    """Join aggregation boundary table with load curves table for each boundary
-
-    Args:
-        con: duckdb.DuckDBPyConnection,
-        load_table_path (str): Path to the load curves table
-        cross_table_path (str): Path to the table with
-        crosswalk records
-        cross_table_col: Column name that links block groups
-        with places
-        load_identity_col: Column name for load identity
-        output_table (str): Name of the output table to store results
-
-    Returns:
-        pd.DataFrame: DataFrame containing the joined results
-    """
-    query = f"""
-        CREATE OR REPLACE TABLE {output_table} AS
-            SELECT 
-                load_table.*,
-                cross_table.* 
-            FROM read_parquet('{load_table_path}') AS load_table
-            INNER JOIN (
-                SELECT * 
-                FROM read_parquet('{cross_table_path}')
-            ) AS cross_table
-            ON load_table.{load_identity_col} = cross_table.{cross_table_col}
-                AND load_table.charge_category = cross_table.charger_type
-            """
-    return con.execute(query)
-
-
-def generate_results(
-    con: duckdb.DuckDBPyConnection, input_table: str, aggregation_col: str
-):
-    """Generate results by scenario, name and year
-
-    Args:
-        con (duckdb.DuckDBPyConnection): DuckDB connection
-        input_table (str): Table containing joined data
-        aggregation_col (str): Column name for aggregation geographies
-
-    Returns:
-        duckdb.DuckDBPyRelation: DuckDB relation with aggregated results
-    """
-    agg_cols = [str(i) for i in range(24)]
-    agg_str = ", ".join([f'sum(weight*"{col}") as "{col}"' for col in agg_cols])
-
-    state_col = "place_state," if aggregation_col == "place_name" else ""
-    state_group = ", place_state" if state_col else ""
-
-    query = f"""
-        SELECT
-            {aggregation_col},
-            {state_col}
-            charge_category,
-            scenario,
-            year,
-            {agg_str},
-            CEILING(SUM(ports*weight)) AS ports,
-        FROM {input_table}
-        GROUP BY {aggregation_col}{state_group}, charge_category, scenario, year
-        ORDER BY {aggregation_col}{state_group}, charge_category, scenario, year 
-        """
-    return con.sql(query)
-
-
-# ---------------------------------------------
-# Configuration
-# ---------------------------------------------
 def main():
     # Configuration
     parser = argparse.ArgumentParser(description="Run aggregation pipeline.")
@@ -141,6 +62,7 @@ def main():
     # ---------------------------------------------
     full_results.to_parquet(os.path.join(outputs_path, "full_results.parquet"))
     sc_con.close()
+    print(f"Aggregation complete. Results saved to {outputs_path}.")
 
 
 if __name__ == "__main__":

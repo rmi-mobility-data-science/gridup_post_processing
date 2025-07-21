@@ -1,4 +1,4 @@
-name: Docker CI Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -7,35 +7,37 @@ on:
     branches: [main]
 
 jobs:
-  build-run:
+  test-and-build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run unit tests
+      run: python -m unittest discover tests
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Build Docker image
-      run: docker build -t aggregation-pipeline .
+      run: docker build -t aggregation:v1.0.0 .
 
-    - name: Prepare test data
-      run: |
-        mkdir -p data/inputs data/outputs
-        cp -r tests/fixtures/* data/inputs/
+    - name: Run pipeline with Docker Compose
+      run: docker-compose up --build
 
-    - name: Run pipeline in container
-      run: |
-        docker run --rm \
-          -v ${{ github.workspace }}/data:/data \
-          aggregation-pipeline \
-          python aggregation_cli.py \
-          --state CT \
-          --inputs_path /data/inputs \
-          --outputs_path /data/outputs \
-          --boundaries_path /data/inputs/test_boundary.parquet
-          --cross_table_path /data/inputs/cross_table.parquet
-
-    - name: Upload output artifacts
+    - name: Upload results (optional)
       uses: actions/upload-artifact@v4
       with:
-        name: results
-        path: data/outputs/
+        name: full_results
+        path: data/outputs/census_places/

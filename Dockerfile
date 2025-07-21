@@ -1,37 +1,38 @@
 # Stage 1: Builder
 FROM python:3.11-slim AS builder
 
-# Install system dependencies required for geospatial libraries
+# Install basic build tools only (no geospatial libraries)
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libgeos-dev \
-    libgdal-dev \
-    libproj-dev \
-    libspatialindex-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set work directory and copy only what's needed to install packages
 WORKDIR /install
-COPY environment.txt .
 
-# Install packages into a custom location (not global)
-RUN pip install --prefix=/install/python-env --no-cache-dir -r environment.txt
+# Copy and install dependencies
+COPY requirements.txt .
+RUN pip install --prefix=/install/python-env --no-cache-dir -r requirements.txt
 
-# Stage 2: Final minimal runtime image
+# Stage 2: Final runtime image
 FROM python:3.11-slim AS final
 
-# Set work directory
+# Create a non-root user
+RUN useradd --create-home appuser
+
 WORKDIR /app
 
-# Copy only the installed Python packages from builder
+# Copy installed Python environment
 COPY --from=builder /install/python-env /usr/local
 
-# Copy your main script (and optionally others if needed)
+# Copy only required source files
 COPY aggregation_cli.py .
+COPY src/ src/
 
-# Optional: if you need spatial extensions installed dynamically by DuckDB
-# they'll be downloaded at runtime if not included here
+# Give appuser ownership of the workdir
+RUN chown -R appuser:appuser /app
 
-# Default command
+# Use non-root user
+USER appuser
+
+# Default command to run the pipeline
 ENTRYPOINT ["python", "aggregation_cli.py"]
