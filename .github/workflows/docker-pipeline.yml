@@ -27,17 +27,3 @@ jobs:
     - name: Run unit tests
       run: python -m unittest discover tests
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build Docker image
-      run: docker build -t aggregation:v1.0.0 .
-
-    - name: Run pipeline with Docker Compose
-      run: docker-compose up --build
-
-    - name: Upload results (optional)
-      uses: actions/upload-artifact@v4
-      with:
-        name: full_results
-        path: data/outputs/census_places/
