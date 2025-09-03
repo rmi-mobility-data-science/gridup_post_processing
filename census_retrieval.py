@@ -94,23 +94,73 @@ for row in state_df.itertuples():
     print(f"Processing state: {row.Abbreviation} ({row.FIPS})")
     state_fips = row.FIPS
     state_abbreviation = row.Abbreviation
-
-    acs_cols = ["NAME", "B01003_001E"]  # Total population
+    acs_cols = [
+        "NAME",
+        "B01003_001E",
+        "B23025_005E",
+        "B23025_003E",
+        "B19001_002E",
+        "B19001_003E",
+        "B19001_004E",
+        "B19001_005E",
+        "B19001_006E",
+        "B19001_007E",
+        "B19001_008E",
+        "B19001_009E",
+        "B19001_010E",
+        "B19001_011E",
+        "B19001_012E",
+        "B19001_013E",
+        "B19001_014E",
+        "B19001_015E",
+        "B19001_016E",
+        "B19001_017E",
+        "B15003_022E",
+        "B15003_023E",
+        "B15003_025E",
+        "B15003_001E",
+    ]
     acs_data = conn.query(
         cols=acs_cols, geo_unit="place:*", geo_filter={"state": state_fips}
     )
 
     # Rename and convert population column
-    acs_data = acs_data.rename(columns={"B01003_001E": "population"})
-    acs_data["population"] = pd.to_numeric(acs_data["population"], errors="coerce")
+    acs_data = acs_data.rename(
+        columns={
+            "B01003_001E": "total_pop",
+            "B23025_005E": "unemployed",
+            "B23025_003E": "civilian_labor",
+            "B19001_002E": "income_less_10k",
+            "B19001_003E": "income_10k_15k",
+            "B19001_004E": "income_15k_20k",
+            "B19001_005E": "income_20k_25k",
+            "B19001_006E": "income_25k_30k",
+            "B19001_007E": "income_30k_35k",
+            "B19001_008E": "income_35k_40k",
+            "B19001_009E": "income_40k_45k",
+            "B19001_010E": "income_45k_50k",
+            "B19001_011E": "income_50k_60k",
+            "B19001_012E": "income_60k_75k",
+            "B19001_013E": "income_75k_100k",
+            "B19001_014E": "income_100k_125k",
+            "B19001_015E": "income_125k_150k",
+            "B19001_016E": "income_150k_200k",
+            "B19001_017E": "income_more_200k",
+            "B15003_022E": "bachelors",
+            "B15003_023E": "masters",
+            "B15003_025E": "doctorate",
+            "B15003_001E": "pop_above_25",
+        }
+    )
+    acs_data[acs_data.columns.difference(["NAME", "state", "place"])] = acs_data[
+        acs_data.columns.difference(["NAME", "state", "place"])
+    ].apply(pd.to_numeric, errors="coerce")
 
     # Filter by population threshold
-    acs_data = acs_data[acs_data["population"] > POPULATION_THRESHOLD].copy()
+    acs_data = acs_data[acs_data["total_pop"] > POPULATION_THRESHOLD].copy()
 
     # Preprocess place names to remove unnecessary suffixes
-    acs_data["NAME"] = acs_data["NAME"].str.replace(
-        r"\s+(city|CDP)", "", regex=True, case=False
-    )
+    acs_data["NAME"] = acs_data["NAME"].str.replace(r"\s+(city|CDP)", "", regex=True)
     acs_data["NAME"] = acs_data["NAME"].apply(lambda x: x.split(",")[0])
 
     # Check if there are records with repetitive names
@@ -121,7 +171,6 @@ for row in state_df.itertuples():
 
     # Construct GEOID and select relevant columns
     acs_data["GEOID"] = acs_data["state"] + acs_data["place"]
-    acs_data = acs_data[["NAME", "GEOID", "population"]]
 
     # ---------------------------------------------
     # Step 3: Load Spatial Boundaries
@@ -151,7 +200,7 @@ for row in state_df.itertuples():
 
     # Subset columns
     filtered.rename(columns={"STUSPS": "STATE"}, inplace=True)
-    filtered = filtered[["NAME", "STATE", "population", "LSAD", "ALAND", "geometry"]]
+
     # Explode multipolygons to polygons
     # polygons_filtered = filtered.explode(ignore_index=True)
     filtered["boundary_wkt"] = filtered.geometry.to_wkt().astype(str)
